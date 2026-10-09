@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amazon Sales Dashboard – เปรียบเทียบหมวดหมู่ & ส่วนลด</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="data.js"></script>
+<style>
+  :root{
+    --bg:#0d1020; --card:#161a30; --card2:#1d2240; --line:#2a3058; --text:#e7e9f5; --muted:#8f95b8;
+    --accent:#7c5cff; --accent2:#22d3ee; --good:#10b981; --bad:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Prompt',system-ui,sans-serif;font-size:14px}
+  header{padding:22px 28px 8px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px}
+  header h1{margin:0;font-size:24px;font-weight:600}
+  header h1 span{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:4px 0 0;color:var(--muted)}
+  .filters{position:sticky;top:0;z-index:20;background:rgba(13,16,32,.92);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);padding:12px 28px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+  .f{display:flex;flex-direction:column;gap:4px}
+  .f label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  select,input[type=text]{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-family:inherit;font-size:13px;min-width:140px}
+  input[type=range]{accent-color:var(--accent);width:130px}
+  .range-wrap{display:flex;gap:8px;align-items:center;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:4px 10px}
+  .range-wrap b{min-width:76px;text-align:center;font-weight:500;color:var(--accent2)}
+  button{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-family:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent)}
+  main{padding:18px 28px 40px;display:flex;flex-direction:column;gap:18px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .kpi .l{color:var(--muted);font-size:12px}
+  .kpi .v{font-size:24px;font-weight:600;margin-top:4px}
+  .kpi .s{color:var(--muted);font-size:11px;margin-top:2px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .card h2{margin:0 0 4px;font-size:17px;font-weight:500}
+  .card h3{margin:0 0 8px;font-size:14px;font-weight:500;color:#cfd3ee}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+  .row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
+  @media(max-width:1100px){.grid2,.grid3{grid-template-columns:1fr}}
+  .panel{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .chart{position:relative;height:300px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;max-height:150px;overflow:auto;padding:2px}
+  .chip{border:1px solid var(--line);background:var(--card2);border-radius:999px;padding:5px 11px;font-size:12px;cursor:pointer;user-select:none;display:flex;gap:6px;align-items:center}
+  .chip:hover{border-color:var(--accent)}
+  .chip small{color:var(--muted)}
+  .chip.on{color:#fff;border-color:transparent}
+  .chip.on small{color:rgba(255,255,255,.8)}
+  .chip .dot{width:8px;height:8px;border-radius:50%}
+  table{width:100%;border-collapse:collapse}
+  .cmp th,.cmp td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+  .cmp th:first-child,.cmp td:first-child{text-align:left;color:var(--muted)}
+  .cmp thead th{font-weight:500;font-size:13px}
+  .cmp td.best{color:var(--good);font-weight:600}
+  .cmp td.best::after{content:' ▲';font-size:9px}
+  .insights{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px}
+  .ins{background:linear-gradient(135deg,rgba(124,92,255,.18),rgba(34,211,238,.10));border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12.5px}
+  .ins b{color:var(--accent2);font-weight:500}
+  .heat td,.heat th{padding:5px 6px;font-size:11.5px;text-align:center;border:1px solid var(--bg)}
+  .heat th{color:var(--muted);font-weight:400}
+  .heat td.name{text-align:left;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+  .heat td.name.sel{font-weight:600}
+  .prod th{font-weight:500;color:var(--muted);text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;font-size:12px}
+  .prod th:hover{color:var(--text)}
+  .prod td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:12.5px}
+  .prod td.num{text-align:right;white-space:nowrap}
+  .prod img{width:42px;height:42px;object-fit:contain;background:#fff;border-radius:6px}
+  .prod a{color:var(--text);text-decoration:none}
+  .prod a:hover{color:var(--accent2)}
+  .pname{display:flex;gap:10px;align-items:center;max-width:520px}
+  .pname span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .dbar{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+  .dbar i{display:block;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .pager{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:10px;color:var(--muted)}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--card2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .muted{color:var(--muted)}
+  .empty{color:var(--muted);text-align:center;padding:40px}
+  svg text{fill:var(--muted);font-family:inherit}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1><span>Amazon Sales</span> · Category & Discount Dashboard</h1>
+    <p id="dataInfo"></p>
+  </div>
+  <div class="muted" style="font-size:12px">คลิกที่ชิป / แท่งกราฟ / ชื่อหมวดใน Heatmap เพื่อเพิ่ม-ลบหมวดที่ต้องการเปรียบเทียบ</div>
+</header>
+
+<div class="filters">
+  <div class="f"><label>ระดับหมวดหมู่</label>
+    <select id="level">
+      <option value="cat">หมวดหลัก (Main)</option>
+      <option value="sub">หมวดย่อย (Sub)</option>
+      <option value="leaf">ประเภทสินค้า (Product type)</option>
+    </select></div>
+  <div class="f"><label>กรองหมวดหลัก</label><select id="parent"></select></div>
+  <div class="f"><label>ช่วงส่วนลด (%)</label>
+    <div class="range-wrap">
+      <input type="range" id="discMin" min="0" max="100" step="5" value="0">
+      <b id="discLbl">0% – 100%</b>
+      <input type="range" id="discMax" min="0" max="100" step="5" value="100">
+    </div></div>
+  <div class="f"><label>ช่วงราคาขาย (₹)</label>
+    <select id="price">
+      <option value="all">ทั้งหมด</option><option value="a">&lt; 500</option><option value="b">500 – 999</option>
+      <option value="c">1,000 – 4,999</option><option value="d">5,000 – 19,999</option><option value="e">≥ 20,000</option>
+    </select></div>
+  <div class="f"><label>เรตติ้งขั้นต่ำ</label>
+    <select id="ratingMin"><option value="0">ทั้งหมด</option><option value="3">★ 3.0+</option><option value="3.5">★ 3.5+</option><option value="4">★ 4.0+</option><option value="4.3">★ 4.3+</option></select></div>
+  <div class="f"><label>ค้นหาสินค้า</label><input type="text" id="search" placeholder="เช่น cable, TV, mixer..."></div>
+  <button id="reset">รีเซ็ตตัวกรอง</button>
+</div>
+
+<main>
+  <section class="kpis" id="kpis"></section>
+
+  <!-- ============ COMPARE ============ -->
+  <section class="card">
+    <div class="row">
+      <div>
+        <h2>⚖️ เปรียบเทียบหมวดหมู่สินค้า</h2>
+        <div class="sub">เลือกได้สูงสุด 6 หมวด (ระดับ: <b id="lvlName"></b>) — ตัวเลขในวงเล็บคือจำนวนสินค้าหลังกรอง</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" id="chipSearch" placeholder="ค้นหาหมวด..." style="min-width:160px">
+        <button id="topSel">เลือก Top 3</button>
+        <button id="clearSel">ล้างการเลือก</button>
+        <button id="exportCmp" class="primary">⬇ ส่งออก CSV</button>
+      </div>
+    </div>
+    <div class="chips" id="chips"></div>
+
+    <div id="cmpBody" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ============ DISCOUNT OVERVIEW ============ -->
+  <section class="card">
+    <div class="row">
+      <div>
+        <h2>🏷️ ภาพรวมส่วนลดตามหมวดหมู่</h2>
+        <div class="sub">หมวดที่ถูกเลือกเปรียบเทียบจะแสดงเป็นสี — คลิกที่แท่งเพื่อเลือก/ยกเลิก</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="f"><label>จำนวนสินค้าขั้นต่ำต่อหมวด</label>
+          <select id="minN"><option>1</option><option selected>3</option><option>5</option><option>10</option><option>20</option></select></div>
+        <div class="f"><label>เรียงตาม</label>
+          <select id="ovSort"><option value="avgDisc">ส่วนลดเฉลี่ย</option><option value="medDisc">ส่วนลดมัธยฐาน</option><option value="deep">% ลด ≥ 50%</option><option value="n">จำนวนสินค้า</option></select></div>
+        <div class="f"><label>แสดงสูงสุด</label>
+          <select id="ovTop"><option>10</option><option selected>15</option><option>25</option><option value="999">ทั้งหมด</option></select></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h3>ส่วนลดเฉลี่ยตามหมวด (%)</h3><div class="chart" id="ovBarWrap"><canvas id="ovBar"></canvas></div></div>
+      <div class="panel">
+        <div class="row"><h3>Heatmap: หมวด × ช่วงส่วนลด</h3>
+          <select id="heatMode" style="min-width:120px"><option value="pct">% ของหมวด</option><option value="n">จำนวนสินค้า</option><option value="rating">เรตติ้งเฉลี่ย</option></select></div>
+        <div id="heat" style="overflow:auto"></div>
+      </div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="panel">
+        <div class="row"><h3>ส่วนลด vs เรตติ้ง (แต่ละจุด = 1 สินค้า)</h3>
+          <label class="muted" style="font-size:12px"><input type="checkbox" id="scOnly"> เฉพาะหมวดที่เลือก</label></div>
+        <div class="chart" style="height:340px"><canvas id="scatter"></canvas></div>
+      </div>
+      <div class="panel"><h3>เรตติ้งเฉลี่ยในแต่ละช่วงส่วนลด (หมวดที่เลือก)</h3>
+        <div class="chart" style="height:340px"><canvas id="ratingByBucket"></canvas></div></div>
+    </div>
+  </section>
+
+  <!-- ============ PRODUCTS ============ -->
+  <section class="card">
+    <div class="row">
+      <div><h2>📦 รายการสินค้า</h2><div class="sub" id="tblInfo"></div></div>
+      <label class="muted" style="font-size:12px"><input type="checkbox" id="tblSelOnly" checked> แสดงเฉพาะหมวดที่เลือกเปรียบเทียบ</label>
+    </div>
+    <div style="overflow:auto"><table class="prod" id="prodTbl"></table></div>
+    <div class="pager" id="pager"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+const P = (window.PRODUCTS || []).filter(p => p.disc != null && p.price != null);
+const COLORS = ['#7c5cff','#22d3ee','#f59e0b','#ef4444','#10b981','#ec4899'];
+const MAX_SEL = 6;
+const LEVEL_LABEL = {cat:'หมวดหลัก', sub:'หมวดย่อย', leaf:'ประเภทสินค้า'};
+const BUCKETS = Array.from({length:10}, (_, i) => `${i*10}–${i*10+9}%`);
+const PRICE = {all:[0,Infinity], a:[0,500], b:[500,1000], c:[1000,5000], d:[5000,20000], e:[20000,Infinity]};
+
+const state = {level:'cat', parent:'all', discMin:0, discMax:100, price:'all', ratingMin:0, search:'',
+  selected:[], chipQ:'', minN:3, ovSort:'avgDisc', ovTop:15, heatMode:'pct', scOnly:false,
+  tblSelOnly:true, sortKey:'disc', sortDir:-1, page:1};
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const fmt = (v, d=0) => (v == null || isNaN(v)) ? '–' : Number(v).toLocaleString('en-IN', {minimumFractionDigits:d, maximumFractionDigits:d});
+const pretty = s => String(s).replace(/&/g, ' & ').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').replace(/([a-z\d])([A-Z])/g, '$1 $2').replace(/,/g, ', ');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const short = (s, n=26) => s.length > n ? s.slice(0, n-1) + '…' : s;
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`; };
+const colorOf = c => { const i = state.selected.indexOf(c); return i < 0 ? null : COLORS[i]; };
+function quant(sorted, q){ if(!sorted.length) return null; const pos=(sorted.length-1)*q, b=Math.floor(pos), r=pos-b;
+  return sorted[b+1] !== undefined ? sorted[b] + r*(sorted[b+1]-sorted[b]) : sorted[b]; }
+function pearson(x, y){ const n=x.length; if(n<3) return null; const mx=x.reduce((a,b)=>a+b,0)/n, my=y.reduce((a,b)=>a+b,0)/n;
+  let sxy=0,sxx=0,syy=0; for(let i=0;i<n;i++){const dx=x[i]-mx, dy=y[i]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy;}
+  return (sxx && syy) ? sxy/Math.sqrt(sxx*syy) : null; }
+const bucketOf = d => Math.min(9, Math.floor(d/10));
+
+function stats(items){
+  const n = items.length, sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
+  const d = items.map(p => p.disc).sort((a,b) => a-b);
+  const r = items.filter(p => p.rating != null);
+  const b = new Array(10).fill(0), bR = new Array(10).fill(0), bRn = new Array(10).fill(0);
+  items.forEach(p => { const k = bucketOf(p.disc); b[k]++; if(p.rating!=null){ bR[k]+=p.rating; bRn[k]++; } });
+  const reviews = sum(items, p => p.rcount || 0);
+  return { n,
+    avgDisc: n ? sum(d, x=>x)/n : null, medDisc: quant(d,.5), q1: quant(d,.25), q3: quant(d,.75),
+    minDisc: n ? d[0] : null, maxDisc: n ? d[n-1] : null,
+    deep: n ? d.filter(v => v >= 50).length/n*100 : null,
+    avgPrice: n ? sum(items, p=>p.price)/n : null, avgMrp: n ? sum(items, p=>p.mrp)/n : null,
+    avgSave: n ? sum(items, p=>p.mrp - p.price)/n : null,
+    avgRating: r.length ? sum(r, p=>p.rating)/r.length : null,
+    reviews, avgReviews: n ? reviews/n : null,
+    corr: pearson(r.map(p=>p.disc), r.map(p=>p.rating)),
+    buckets: b, bucketsPct: b.map(v => n ? v/n*100 : 0),
+    bucketRating: bR.map((v,i) => bRn[i] ? v/bRn[i] : null) };
+}
+
+function filtered(){
+  const [pmin, pmax] = PRICE[state.price], q = state.search.trim().toLowerCase();
+  return P.filter(p => (state.parent === 'all' || p.cat === state.parent)
+    && p.disc >= state.discMin && p.disc <= state.discMax
+    && (state.ratingMin === 0 || (p.rating != null && p.rating >= state.ratingMin))
+    && p.price >= pmin && p.price < pmax
+    && (!q || p.name.toLowerCase().includes(q)));
+}
+function groupBy(data, key){ const m = new Map(); data.forEach(p => { if(!m.has(p[key])) m.set(p[key], []); m.get(p[key]).push(p); }); return m; }
+
+/* ---------- Chart.js setup ---------- */
+Chart.defaults.color = '#8f95b8';
+Chart.defaults.borderColor = 'rgba(42,48,88,.7)';
+Chart.defaults.font.family = "'Prompt', system-ui, sans-serif";
+Chart.defaults.plugins.legend.labels.boxWidth = 12;
+const charts = {};
+function chart(id, cfg){ if(charts[id]) charts[id].destroy(); charts[id] = new Chart($(id), cfg); }
+
+/* ---------- selection ---------- */
+function toggle(c){
+  const i = state.selected.indexOf(c);
+  if(i >= 0) state.selected.splice(i, 1);
+  else if(state.selected.length < MAX_SEL) state.selected.push(c);
+  else { alert('เลือกเปรียบเทียบได้สูงสุด ' + MAX_SEL + ' หมวด'); return; }
+  state.page = 1; render();
+}
+function topN(n=3){
+  const g = groupBy(filtered(), state.level);
+  state.selected = [...g.entries()].sort((a,b) => b[1].length - a[1].length).slice(0, n).map(e => e[0]);
+}
+
+/* ---------- KPIs ---------- */
+function renderKPIs(data){
+  const s = stats(data);
+  const cats = new Set(data.map(p => p[state.level])).size;
+  const k = [
+    ['จำนวนสินค้า', fmt(s.n), `${cats} ${LEVEL_LABEL[state.level]}`],
+    ['ส่วนลดเฉลี่ย', fmt(s.avgDisc,1)+'%', `มัธยฐาน ${fmt(s.medDisc,0)}%`],
+    ['สินค้าลด ≥ 50%', fmt(s.deep,1)+'%', `${fmt(data.filter(p=>p.disc>=50).length)} รายการ`],
+    ['ประหยัดเฉลี่ย/ชิ้น', '₹'+fmt(s.avgSave), `ราคาขายเฉลี่ย ₹${fmt(s.avgPrice)}`],
+    ['เรตติ้งเฉลี่ย', '★ '+fmt(s.avgRating,2), `Corr. ส่วนลด–เรตติ้ง ${fmt(s.corr,2)}`],
+    ['จำนวนรีวิวรวม', fmt(s.reviews), `เฉลี่ย ${fmt(s.avgReviews)} / สินค้า`],
+  ];
+  $('kpis').innerHTML = k.map(([l,v,sub]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`).join('');
+}
+
+/* ---------- chips ---------- */
+function renderChips(data){
+  const g = groupBy(data, state.level);
+  state.selected.forEach(c => { if(!g.has(c)) g.set(c, []); });
+  const q = state.chipQ.toLowerCase();
+  const list = [...g.entries()].sort((a,b) => b[1].length - a[1].length)
+    .filter(([c]) => !q || pretty(c).toLowerCase().includes(q) || state.selected.includes(c));
+  $('chips').innerHTML = list.map(([c, arr]) => {
+    const col = colorOf(c);
+    return `<div class="chip ${col?'on':''}" data-c="${esc(c)}" style="${col?`background:${col}`:''}">
+      ${col?'':'<span class="dot" style="background:#3a3f63"></span>'}${esc(pretty(c))} <small>(${arr.length})</small></div>`;
+  }).join('') || '<span class="muted">ไม่พบหมวด</span>';
+  $('chips').querySelectorAll('.chip').forEach(el => el.onclick = () => toggle(el.dataset.c));
+}
+
+/* ---------- comparison ---------- */
+const METRICS = [
+  {k:'n', label:'จำนวนสินค้า', f:v=>fmt(v), best:'high'},
+  {k:'avgDisc', label:'ส่วนลดเฉลี่ย', f:v=>fmt(v,1)+'%', best:'high', chart:true},
+  {k:'medDisc', label:'ส่วนลดมัธยฐาน', f:v=>fmt(v,1)+'%', best:'high', chart:true},
+  {k:'range', label:'ช่วงส่วนลด (ต่ำสุด – สูงสุด)', custom:s=>s.n?`${fmt(s.minDisc)}% – ${fmt(s.maxDisc)}%`:'–'},
+  {k:'iqr', label:'ช่วงกลาง 50% (Q1 – Q3)', custom:s=>s.n?`${fmt(s.q1,0)}% – ${fmt(s.q3,0)}%`:'–'},
+  {k:'deep', label:'สัดส่วนสินค้าลด ≥ 50%', f:v=>fmt(v,1)+'%', best:'high', chart:true},
+  {k:'avgPrice', label:'ราคาขายเฉลี่ย', f:v=>'₹'+fmt(v), best:'low', chart:true},
+  {k:'avgMrp', label:'ราคาเต็มเฉลี่ย', f:v=>'₹'+fmt(v), chart:true},
+  {k:'avgSave', label:'ประหยัดเฉลี่ยต่อชิ้น', f:v=>'₹'+fmt(v), best:'high', chart:true},
+  {k:'avgRating', label:'เรตติ้งเฉลี่ย', f:v=>'★ '+fmt(v,2), best:'high', chart:true},
+  {k:'reviews', label:'จำนวนรีวิวรวม', f:v=>fmt(v), best:'high', chart:true},
+  {k:'avgReviews', label:'รีวิวเฉลี่ยต่อสินค้า', f:v=>fmt(v), best:'high', chart:true},
+  {k:'corr', label:'Correlation ส่วนลด ↔ เรตติ้ง', f:v=>fmt(v,2)},
+];
+let cmpMetric = 'avgDisc';
+
+function renderCompare(data){
+  const sel = state.selected;
+  if(!sel.length){ $('cmpBody').innerHTML = '<div class="empty">ยังไม่ได้เลือกหมวด — คลิกชิปด้านบน หรือกด "เลือก Top 3"</div>'; return; }
+  const g = groupBy(data, state.level);
+  const S = sel.map(c => ({c, s: stats(g.get(c) || []), col: colorOf(c)}));
+
+  // insights
+  const valid = S.filter(x => x.s.n);
+  const pick = (k, dir=1) => valid.length ? valid.reduce((a,b) => (b.s[k]??-Infinity)*dir > (a.s[k]??-Infinity)*dir ? b : a) : null;
+  const ins = [];
+  if(valid.length){
+    const hi = pick('avgDisc'), lo = pick('avgDisc', -1), dp = pick('deep'), rt = pick('avgRating'), sv = pick('avgSave');
+    ins.push(`ลดเฉลี่ยมากที่สุด: <b>${esc(pretty(hi.c))}</b> (${fmt(hi.s.avgDisc,1)}%)`);
+    if(valid.length > 1) ins.push(`ลดเฉลี่ยน้อยที่สุด: <b>${esc(pretty(lo.c))}</b> (${fmt(lo.s.avgDisc,1)}%) · ต่างกัน ${fmt(hi.s.avgDisc-lo.s.avgDisc,1)} จุด`);
+    ins.push(`ลด ≥50% บ่อยที่สุด: <b>${esc(pretty(dp.c))}</b> (${fmt(dp.s.deep,0)}% ของสินค้า)`);
+    ins.push(`เรตติ้งสูงสุด: <b>${esc(pretty(rt.c))}</b> (★ ${fmt(rt.s.avgRating,2)})`);
+    ins.push(`ประหยัดเงินต่อชิ้นมากสุด: <b>${esc(pretty(sv.c))}</b> (₹${fmt(sv.s.avgSave)})`);
+  }
+
+  // table
+  const head = `<tr><th>ตัวชี้วัด</th>${S.map(x => `<th><span style="color:${x.col}">●</span> ${esc(short(pretty(x.c), 28))}</th>`).join('')}</tr>`;
+  const body = METRICS.map(m => {
+    let bestIdx = -1;
+    if(m.best && valid.length > 1){
+      let bv = null; S.forEach((x,i) => { const v = x.s[m.k]; if(v == null || !x.s.n) return;
+        if(bv == null || (m.best === 'high' ? v > bv : v < bv)){ bv = v; bestIdx = i; } });
+    }
+    return `<tr><td>${m.label}</td>${S.map((x,i) => `<td class="${i===bestIdx?'best':''}">${m.custom ? m.custom(x.s) : m.f(x.s[m.k])}</td>`).join('')}</tr>`;
+  }).join('');
+
+  $('cmpBody').innerHTML = `
+    <div class="insights">${ins.map(t => `<div class="ins">${t}</div>`).join('')}</div>
+    <div class="grid3">
+      <div class="panel" style="overflow:auto"><h3>ตารางเปรียบเทียบ</h3><table class="cmp"><thead>${head}</thead><tbody>${body}</tbody></table>
+        <div class="muted" style="font-size:11px;margin-top:8px">▲ = ดีที่สุดในกลุ่ม (ราคาขาย: ต่ำสุดดีที่สุด) · Correlation ติดลบ = ยิ่งลดมาก เรตติ้งยิ่งต่ำ</div></div>
+      <div class="panel"><h3>โปรไฟล์หมวด (Radar, normalized 0–100)</h3><div class="chart" style="height:360px"><canvas id="radar"></canvas></div></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="panel"><div class="row"><h3>เปรียบเทียบตัวชี้วัด</h3>
+        <select id="cmpMetric">${METRICS.filter(m=>m.chart).map(m => `<option value="${m.k}" ${m.k===cmpMetric?'selected':''}>${m.label}</option>`).join('')}</select></div>
+        <div class="chart"><canvas id="cmpBar"></canvas></div></div>
+      <div class="panel"><h3>การกระจายของส่วนลด (Box plot)</h3><div id="box"></div>
+        <div class="muted" style="font-size:11px">เส้น = ต่ำสุด–สูงสุด · กล่อง = Q1–Q3 · เส้นขาว = มัธยฐาน · ◆ = ค่าเฉลี่ย</div></div>
+    </div>
+    <div class="panel" style="margin-top:16px"><div class="row"><h3>สัดส่วนสินค้าในแต่ละช่วงส่วนลด (% ของหมวด)</h3>
+      <select id="distType" style="min-width:110px"><option value="bar">กราฟแท่ง</option><option value="line">กราฟเส้น</option></select></div>
+      <div class="chart"><canvas id="dist"></canvas></div></div>`;
+
+  // metric bar
+  const drawBar = () => {
+    const m = METRICS.find(x => x.k === cmpMetric);
+    chart('cmpBar', {type:'bar', data:{labels:S.map(x => short(pretty(x.c), 22)),
+      datasets:[{label:m.label, data:S.map(x => x.s[m.k]), backgroundColor:S.map(x => hexA(x.col,.8)), borderColor:S.map(x=>x.col), borderWidth:1, borderRadius:6}]},
+      options:{maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c => m.f(c.raw)}}}, scales:{y:{beginAtZero:true}}}});
+  };
+  drawBar();
+  $('cmpMetric').onchange = e => { cmpMetric = e.target.value; drawBar(); };
+
+  // distribution
+  const drawDist = type => chart('dist', {type, data:{labels:BUCKETS, datasets:S.map(x => ({label:pretty(x.c), data:x.s.bucketsPct.map(v=>+v.toFixed(1)),
+      backgroundColor:hexA(x.col, type==='bar'?.75:.15), borderColor:x.col, borderWidth:2, tension:.35, fill:type==='line', borderRadius:4, pointRadius:3}))},
+    options:{maintainAspectRatio:false, interaction:{mode:'index', intersect:false},
+      plugins:{tooltip:{callbacks:{label:c => `${c.dataset.label}: ${c.raw}% (${S[c.datasetIndex].s.buckets[c.dataIndex]} รายการ)`}}},
+      scales:{y:{beginAtZero:true, title:{display:true, text:'% ของสินค้าในหมวด'}}, x:{title:{display:true, text:'ช่วงส่วนลด'}}}}});
+  drawDist('bar');
+  $('distType').onchange = e => drawDist(e.target.value);
+
+  // radar
+  const mx = k => Math.max(...valid.map(x => x.s[k] || 0), 1e-9);
+  const axes = [
+    ['ส่วนลดเฉลี่ย', s => s.avgDisc, s => fmt(s.avgDisc,1)+'%'],
+    ['ลด ≥50%', s => s.deep, s => fmt(s.deep,1)+'%'],
+    ['เรตติ้ง', s => s.avgRating!=null ? (s.avgRating-3)/2*100 : 0, s => '★ '+fmt(s.avgRating,2)],
+    ['ความนิยม (รีวิว/สินค้า)', s => (s.avgReviews||0)/mx('avgReviews')*100, s => fmt(s.avgReviews)],
+    ['ประหยัด/ชิ้น', s => (s.avgSave||0)/mx('avgSave')*100, s => '₹'+fmt(s.avgSave)],
+    ['จำนวนสินค้า', s => s.n/mx('n')*100, s => fmt(s.n)],
+  ];
+  chart('radar', {type:'radar', data:{labels:axes.map(a=>a[0]), datasets:S.map(x => ({label:short(pretty(x.c),24),
+      data:axes.map(a => x.s.n ? Math.max(0, +a[1](x.s).toFixed(1)) : 0), borderColor:x.col, backgroundColor:hexA(x.col,.15), pointBackgroundColor:x.col, borderWidth:2}))},
+    options:{maintainAspectRatio:false, scales:{r:{min:0, max:100, ticks:{display:false, stepSize:25}, grid:{color:'rgba(42,48,88,.9)'}, angleLines:{color:'rgba(42,48,88,.9)'}, pointLabels:{font:{size:11}}}},
+      plugins:{tooltip:{callbacks:{label:c => `${c.dataset.label}: ${axes[c.dataIndex][2](S[c.datasetIndex].s)}`}}}}});
+
+  // box plot (SVG)
+  const W = 640, L = 170, R = 20, rowH = 40, H = S.length*rowH + 34, X = v => L + v/100*(W-L-R);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+  for(let t=0; t<=100; t+=10) svg += `<line x1="${X(t)}" x2="${X(t)}" y1="6" y2="${H-24}" stroke="#2a3058"/><text x="${X(t)}" y="${H-8}" font-size="10" text-anchor="middle">${t}%</text>`;
+  S.forEach((x, i) => {
+    const y = 10 + i*rowH + rowH/2, s = x.s;
+    svg += `<text x="${L-10}" y="${y+4}" font-size="11.5" text-anchor="end">${esc(short(pretty(x.c), 24))}</text>`;
+    if(!s.n){ svg += `<text x="${X(50)}" y="${y+4}" font-size="11" text-anchor="middle">ไม่มีข้อมูล</text>`; return; }
+    svg += `<g><title>${esc(pretty(x.c))}\nต่ำสุด ${fmt(s.minDisc)}% · Q1 ${fmt(s.q1,1)}% · มัธยฐาน ${fmt(s.medDisc,1)}% · Q3 ${fmt(s.q3,1)}% · สูงสุด ${fmt(s.maxDisc)}% · เฉลี่ย ${fmt(s.avgDisc,1)}%</title>
+      <line x1="${X(s.minDisc)}" x2="${X(s.maxDisc)}" y1="${y}" y2="${y}" stroke="${x.col}" stroke-width="2"/>
+      <line x1="${X(s.minDisc)}" x2="${X(s.minDisc)}" y1="${y-7}" y2="${y+7}" stroke="${x.col}" stroke-width="2"/>
+      <line x1="${X(s.maxDisc)}" x2="${X(s.maxDisc)}" y1="${y-7}" y2="${y+7}" stroke="${x.col}" stroke-width="2"/>
+      <rect x="${X(s.q1)}" y="${y-12}" width="${Math.max(2, X(s.q3)-X(s.q1))}" height="24" rx="4" fill="${hexA(x.col,.55)}" stroke="${x.col}"/>
+      <line x1="${X(s.medDisc)}" x2="${X(s.medDisc)}" y1="${y-12}" y2="${y+12}" stroke="#fff" stroke-width="2.5"/>
+      <path d="M${X(s.avgDisc)} ${y-5} l5 5 l-5 5 l-5 -5z" fill="#fff" stroke="${x.col}"/></g>`;
+  });
+  $('box').innerHTML = svg + '</svg>';
+}
+
+/* ---------- overview ---------- */
+function overviewCats(data){
+  const g = groupBy(data, state.level);
+  let rows = [...g.entries()].map(([c, arr]) => ({c, s: stats(arr)})).filter(r => r.s.n >= state.minN || state.selected.includes(r.c));
+  rows.sort((a,b) => (b.s[state.ovSort]??0) - (a.s[state.ovSort]??0));
+  const top = rows.slice(0, state.ovTop);
+  rows.forEach(r => { if(state.selected.includes(r.c) && !top.includes(r)) top.push(r); }); // always show selected
+  return top;
+}
+
+function renderOverview(data){
+  const rows = overviewCats(data);
+  $('ovBarWrap').style.height = Math.max(260, rows.length*24 + 50) + 'px';
+  chart('ovBar', {type:'bar', data:{labels:rows.map(r => short(pretty(r.c), 30)),
+      datasets:[{label:'ส่วนลดเฉลี่ย', data:rows.map(r => +r.s.avgDisc.toFixed(1)),
+        backgroundColor:rows.map(r => colorOf(r.c) || '#3a3f63'), borderRadius:5}]},
+    options:{indexAxis:'y', maintainAspectRatio:false, onClick:(e, els) => { if(els.length) toggle(rows[els[0].index].c); },
+      onHover:(e, els) => e.native.target.style.cursor = els.length ? 'pointer' : 'default',
+      plugins:{legend:{display:false}, tooltip:{callbacks:{title:c => pretty(rows[c[0].dataIndex].c),
+        label:c => { const s = rows[c.dataIndex].s; return [`ส่วนลดเฉลี่ย ${fmt(s.avgDisc,1)}% · มัธยฐาน ${fmt(s.medDisc,0)}%`, `ลด ≥50%: ${fmt(s.deep,0)}% · ${s.n} รายการ`]; }}}},
+      scales:{x:{beginAtZero:true, max:100, ticks:{callback:v => v+'%'}}}}});
+
+  // heatmap
+  const mode = state.heatMode;
+  const val = (s, i) => mode === 'pct' ? s.bucketsPct[i] : mode === 'n' ? s.buckets[i] : s.bucketRating[i];
+  let max = 0, min = Infinity;
+  rows.forEach(r => BUCKETS.forEach((_, i) => { const v = val(r.s, i); if(v != null){ max = Math.max(max, v); min = Math.min(min, v); } }));
+  const shade = v => { if(v == null) return 'transparent';
+    const t = mode === 'rating' ? (max>min ? (v-min)/(max-min) : 1) : (max ? v/max : 0);
+    return mode === 'rating' ? `rgba(16,185,129,${.12 + .85*t})` : `rgba(124,92,255,${.06 + .9*t})`; };
+  const cell = v => v == null ? '' : mode === 'pct' ? (v ? v.toFixed(0)+'%' : '') : mode === 'n' ? (v || '') : v.toFixed(2);
+  $('heat').innerHTML = `<table class="heat"><thead><tr><th style="text-align:left">หมวด</th>${BUCKETS.map(b => `<th>${b}</th>`).join('')}<th>n</th></tr></thead><tbody>
+    ${rows.map(r => { const col = colorOf(r.c);
+      return `<tr><td class="name ${col?'sel':''}" data-c="${esc(r.c)}" title="${esc(pretty(r.c))}" style="${col?`color:${col}`:''}">${col?'● ':''}${esc(short(pretty(r.c), 26))}</td>
+      ${BUCKETS.map((_, i) => { const v = val(r.s, i); return `<td style="background:${shade(v)}" title="${esc(pretty(r.c))} · ${BUCKETS[i]}: ${r.s.buckets[i]} รายการ">${cell(v)}</td>`; }).join('')}
+      <td class="muted">${r.s.n}</td></tr>`; }).join('')}</tbody></table>`;
+  $('heat').querySelectorAll('td.name').forEach(el => el.onclick = () => toggle(el.dataset.c));
+
+  // scatter
+  const ds = [];
+  if(!state.scOnly){
+    const others = data.filter(p => p.rating != null && !state.selected.includes(p[state.level]));
+    ds.push({label:'หมวดอื่น ๆ', data:others.map(p => ({x:p.disc, y:p.rating, p})), backgroundColor:'rgba(143,149,184,.22)', pointRadius:3});
+  }
+  state.selected.forEach(c => {
+    const pts = data.filter(p => p.rating != null && p[state.level] === c);
+    ds.push({label:short(pretty(c), 24), data:pts.map(p => ({x:p.disc, y:p.rating, p})), backgroundColor:hexA(colorOf(c), .75), pointRadius:4, pointHoverRadius:7});
+  });
+  chart('scatter', {type:'scatter', data:{datasets:ds},
+    options:{maintainAspectRatio:false, onClick:(e, els) => { if(els.length){ const p = ds[els[0].datasetIndex].data[els[0].index].p; window.open(p.link, '_blank'); } },
+      plugins:{tooltip:{callbacks:{label:c => { const p = c.raw.p; return [short(p.name, 60), `ส่วนลด ${p.disc}% · ★ ${p.rating} · ₹${fmt(p.price)} (เต็ม ₹${fmt(p.mrp)})`]; }}}},
+      scales:{x:{min:0, max:100, title:{display:true, text:'ส่วนลด (%)'}}, y:{min:2, max:5.1, title:{display:true, text:'เรตติ้ง'}}}}});
+
+  // rating by bucket
+  const g = groupBy(data, state.level);
+  const base = stats(data);
+  const lines = [{label:'ทั้งหมด (หลังกรอง)', data:base.bucketRating, borderColor:'#8f95b8', borderDash:[5,4], backgroundColor:'#8f95b8', pointRadius:2, tension:.3, spanGaps:true}];
+  state.selected.forEach(c => { const s = stats(g.get(c) || []);
+    lines.push({label:short(pretty(c), 24), data:s.bucketRating.map(v => v==null?null:+v.toFixed(2)), borderColor:colorOf(c), backgroundColor:colorOf(c), tension:.3, spanGaps:true, pointRadius:4}); });
+  chart('ratingByBucket', {type:'line', data:{labels:BUCKETS, datasets:lines},
+    options:{maintainAspectRatio:false, interaction:{mode:'index', intersect:false},
+      plugins:{tooltip:{callbacks:{label:c => `${c.dataset.label}: ${c.raw==null?'–':'★ '+(+c.raw).toFixed(2)}`}}},
+      scales:{y:{suggestedMin:3.5, suggestedMax:4.6, title:{display:true, text:'เรตติ้งเฉลี่ย'}}, x:{title:{display:true, text:'ช่วงส่วนลด'}}}}});
+}
+
+/* ---------- product table ---------- */
+const COLS = [
+  {k:'name', label:'สินค้า'}, {k:state.level, label:'หมวด', lv:true}, {k:'price', label:'ราคาขาย', num:true},
+  {k:'mrp', label:'ราคาเต็ม', num:true}, {k:'save', label:'ประหยัด', num:true}, {k:'disc', label:'ส่วนลด', num:true},
+  {k:'rating', label:'เรตติ้ง', num:true}, {k:'rcount', label:'รีวิว', num:true}];
+function renderTable(data){
+  let rows = data;
+  if(state.tblSelOnly && state.selected.length) rows = rows.filter(p => state.selected.includes(p[state.level]));
+  const key = state.sortKey === 'lv' ? state.level : state.sortKey;
+  const get = p => key === 'save' ? p.mrp - p.price : p[key];
+  rows = [...rows].sort((a,b) => { const x = get(a), y = get(b);
+    if(x == null) return 1; if(y == null) return -1;
+    return (typeof x === 'string' ? x.localeCompare(y) : x - y) * state.sortDir; });
+  const per = 15, pages = Math.max(1, Math.ceil(rows.length/per));
+  state.page = Math.min(state.page, pages);
+  const slice = rows.slice((state.page-1)*per, state.page*per);
+  $('tblInfo').textContent = `${fmt(rows.length)} รายการ` + (state.tblSelOnly && state.selected.length ? ` ใน ${state.selected.length} หมวดที่เลือก` : '');
+  const arrow = k => (state.sortKey === k ? (state.sortDir > 0 ? ' ▲' : ' ▼') : '');
+  $('prodTbl').innerHTML = `<thead><tr>${COLS.map(c => { const k = c.lv ? 'lv' : c.k; return `<th data-k="${k}" style="${c.num?'text-align:right':''}">${c.label}${arrow(k)}</th>`; }).join('')}</tr></thead>
+    <tbody>${slice.map(p => { const col = colorOf(p[state.level]); return `<tr>
+      <td><div class="pname"><img src="${esc(p.img)}" loading="lazy" onerror="this.style.visibility='hidden'"><a href="${esc(p.link)}" target="_blank" title="${esc(p.name)}"><span>${esc(p.name)}</span></a></div></td>
+      <td><span class="tag" style="${col?`color:${col};border-color:${col}`:''}">${esc(short(pretty(p[state.level]), 26))}</span></td>
+      <td class="num">₹${fmt(p.price)}</td><td class="num muted"><s>₹${fmt(p.mrp)}</s></td><td class="num">₹${fmt(p.mrp - p.price)}</td>
+      <td class="num"><div class="dbar"><i style="width:${p.disc*0.6}px"></i>${p.disc}%</div></td>
+      <td class="num">${p.rating != null ? '★ '+p.rating : '–'}</td><td class="num">${fmt(p.rcount)}</td></tr>`; }).join('') || `<tr><td colspan="8" class="empty">ไม่มีสินค้าตามเงื่อนไข</td></tr>`}</tbody>`;
+  $('prodTbl').querySelectorAll('th').forEach(th => th.onclick = () => {
+    const k = th.dataset.k; if(state.sortKey === k) state.sortDir *= -1; else { state.sortKey = k; state.sortDir = (k==='name'||k==='lv') ? 1 : -1; }
+    renderTable(filtered()); });
+  $('pager').innerHTML = `<button ${state.page<=1?'disabled':''} id="pgPrev">‹ ก่อนหน้า</button><span>หน้า ${state.page} / ${pages}</span><button ${state.page>=pages?'disabled':''} id="pgNext">ถัดไป ›</button>`;
+  $('pgPrev').onclick = () => { state.page--; renderTable(filtered()); };
+  $('pgNext').onclick = () => { state.page++; renderTable(filtered()); };
+}
+
+/* ---------- export ---------- */
+function exportCSV(){
+  if(!state.selected.length){ alert('กรุณาเลือกหมวดก่อน'); return; }
+  const g = groupBy(filtered(), state.level);
+  const S = state.selected.map(c => ({c, s: stats(g.get(c) || [])}));
+  const q = v => `"${String(v).replace(/"/g, '""')}"`;
+  const lines = [[q('Metric'), ...S.map(x => q(pretty(x.c)))].join(',')];
+  METRICS.forEach(m => lines.push([q(m.label), ...S.map(x => q(m.custom ? m.custom(x.s) : (x.s[m.k] == null ? '' : +(+x.s[m.k]).toFixed(2))))].join(',')));
+  BUCKETS.forEach((b, i) => lines.push([q('% สินค้าส่วนลด ' + b), ...S.map(x => x.s.bucketsPct[i].toFixed(1))].join(',')));
+  const blob = new Blob(['\ufeff' + lines.join('\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `category_comparison_${state.level}.csv`; a.click();
+}
+
+/* ---------- main render & wiring ---------- */
+function render(){
+  const data = filtered();
+  $('lvlName').textContent = LEVEL_LABEL[state.level];
+  renderKPIs(data); renderChips(data); renderCompare(data); renderOverview(data); renderTable(data);
+}
+
+$('dataInfo').textContent = `ข้อมูลจาก amazon.csv · ${fmt(P.length)} สินค้า (ตัดรายการซ้ำแล้ว) · ${new Set(P.map(p=>p.cat)).size} หมวดหลัก · ${new Set(P.map(p=>p.sub)).size} หมวดย่อย · ${new Set(P.map(p=>p.leaf)).size} ประเภทสินค้า`;
+const parents = [...groupBy(P, 'cat').entries()].sort((a,b) => b[1].length - a[1].length);
+$('parent').innerHTML = `<option value="all">ทั้งหมด</option>` + parents.map(([c, a]) => `<option value="${esc(c)}">${esc(pretty(c))} (${a.length})</option>`).join('');
+
+const onFilter = () => { state.page = 1; render(); };
+$('level').onchange = e => { state.level = e.target.value; state.chipQ = ''; $('chipSearch').value = ''; state.sortKey = state.sortKey === 'lv' ? 'disc' : state.sortKey; topN(3); onFilter(); };
+$('parent').onchange = e => { state.parent = e.target.value;
+  if(state.level !== 'cat'){ const keep = new Set(filtered().map(p => p[state.level])); state.selected = state.selected.filter(c => keep.has(c)); if(!state.selected.length) topN(3); }
+  onFilter(); };
+const syncDisc = src => {
+  let a = +$('discMin').value, b = +$('discMax').value;
+  if(a > b){ if(src === 'min') b = a; else a = b; $('discMin').value = a; $('discMax').value = b; }
+  state.discMin = a; state.discMax = b; $('discLbl').textContent = `${a}% – ${b}%`; onFilter(); };
+$('discMin').oninput = () => syncDisc('min');
+$('discMax').oninput = () => syncDisc('max');
+$('price').onchange = e => { state.price = e.target.value; onFilter(); };
+$('ratingMin').onchange = e => { state.ratingMin = +e.target.value; onFilter(); };
+let st; $('search').oninput = e => { clearTimeout(st); st = setTimeout(() => { state.search = e.target.value; onFilter(); }, 250); };
+$('chipSearch').oninput = e => { state.chipQ = e.target.value; renderChips(filtered()); };
+$('topSel').onclick = () => { topN(3); onFilter(); };
+$('clearSel').onclick = () => { state.selected = []; onFilter(); };
+$('exportCmp').onclick = exportCSV;
+$('minN').onchange = e => { state.minN = +e.target.value; renderOverview(filtered()); };
+$('ovSort').onchange = e => { state.ovSort = e.target.value; renderOverview(filtered()); };
+$('ovTop').onchange = e => { state.ovTop = +e.target.value; renderOverview(filtered()); };
+$('heatMode').onchange = e => { state.heatMode = e.target.value; renderOverview(filtered()); };
+$('scOnly').onchange = e => { state.scOnly = e.target.checked; renderOverview(filtered()); };
+$('tblSelOnly').onchange = e => { state.tblSelOnly = e.target.checked; state.page = 1; renderTable(filtered()); };
+$('reset').onclick = () => {
+  Object.assign(state, {parent:'all', discMin:0, discMax:100, price:'all', ratingMin:0, search:'', page:1});
+  $('parent').value = 'all'; $('discMin').value = 0; $('discMax').value = 100; $('discLbl').textContent = '0% – 100%';
+  $('price').value = 'all'; $('ratingMin').value = '0'; $('search').value = ''; render(); };
+
+if(!P.length){ document.querySelector('main').innerHTML = '<div class="card empty">ไม่พบข้อมูล — กรุณารัน build_data.ps1 เพื่อสร้าง data.js</div>'; return; }
+topN(3); render();
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => render());
+})();
+</script>
+</body>
+</html>
